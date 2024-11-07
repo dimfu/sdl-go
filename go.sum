@@ -1,0 +1,4 @@
+github.com/razsteinmetz/go-ptn v1.0.0 h1:bLJzpwg16iASG2omVogBr8BZRlA56g9drhNa+OXHAY0=
+github.com/razsteinmetz/go-ptn v1.0.0/go.mod h1:B6toL0IaRZ8kUJ/h29QRitsbfsOypzqVzU8IaakxIVI=
+golang.org/x/text v0.3.7 h1:olpwvP2KacW1ZWvsR7uQhoyTYvKAupfQrRGBFM352Gk=
+golang.org/x/text v0.3.7/go.mod h1:u+2+/6zg+i71rQMx5EYifcz6MCKuco9NR6JIITiCfzQ=
