@@ -64,6 +64,8 @@ func main() {
 		panic(err)
 	}
 
+	config.CWD = cwd
+
 	files, err := os.ReadDir(cwd)
 	if err != nil {
 		log.Fatal(err)

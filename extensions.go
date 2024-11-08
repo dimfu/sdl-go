@@ -23,9 +23,14 @@ var extensions = []string{
 	".m2ts",
 }
 
-func ExtIsAllowed(filename string) bool {
+func SearchExtension(filename string) string {
 	pattern := regexp.MustCompile(`\.[0-9a-zA-Z]+$`)
 	match := pattern.FindString(filename)
+	return match
+}
+
+func ExtIsAllowed(filename string) bool {
+	match := SearchExtension(filename)
 
 	for _, ext := range extensions {
 		if ext == match {

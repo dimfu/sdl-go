@@ -12,6 +12,7 @@ import (
 type Config struct {
 	SDL_API_KEY    string `json:"sdl_api_key"`
 	PREFERRED_LANG string
+	CWD            string
 }
 
 func GetConfig() Config {

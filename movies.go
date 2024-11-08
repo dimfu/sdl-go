@@ -1,21 +1,27 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/razsteinmetz/go-ptn"
 )
 
 const (
-	SUBDL_URL     = "https://api.subdl.com/api/v1/subtitles"
-	DOWNLOAD_LINK = "https://dl.subdl.com"
+	SUBDL_URL    = "https://api.subdl.com/api/v1/subtitles"
+	DOWNLOAD_URL = "https://dl.subdl.com"
 )
 
 type series struct {
@@ -24,11 +30,12 @@ type series struct {
 }
 
 type Movie struct {
-	Filename string
-	Title    string
-	Lang     string
-	Series   *series
-	Source   string
+	Filename  string
+	Title     string
+	Lang      string
+	Series    *series
+	Source    string
+	Extension string
 
 	AvailableSubtitles []Subtitle
 }
@@ -93,7 +100,11 @@ func (movies Movies) GetSubtitles() {
 				log.Printf("cannot get subtitle for this movie")
 				return
 			}
-			fmt.Println(*subUrl)
+			err = movie.downloadSubtitle(*subUrl)
+			if err != nil {
+				log.Print(err.Error())
+				return
+			}
 		}(movie)
 	}
 
@@ -122,7 +133,7 @@ func (movie *Movie) searchMovie(api_key string) error {
 	req.URL.RawQuery = q.Encode()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Fatal(err.Error())
+		return err
 	}
 	defer resp.Body.Close()
 
@@ -162,6 +173,66 @@ func (movie Movie) selectSubtitle() *string {
 					continue
 				}
 			}
+		}
+	}
+
+	return nil
+}
+
+func (movie Movie) extToSRT() string {
+	s := movie.Filename
+	match := SearchExtension(movie.Filename)
+	r := strings.NewReplacer(match, ".srt")
+	s = r.Replace(s)
+	return s
+}
+
+func (movie Movie) downloadSubtitle(url string) error {
+	dl_url := DOWNLOAD_URL + url
+	req, err := http.NewRequest(http.MethodGet, dl_url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("failed to download the subtitle")
+	}
+
+	contents, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.New("response is unreadable")
+	}
+
+	reader := bytes.NewReader(contents)
+	zipReader, err := zip.NewReader(reader, int64(len(contents)))
+	if err != nil {
+		return fmt.Errorf("failed to read zip file: %v", err)
+	}
+
+	for _, file := range zipReader.File {
+		f, err := file.Open()
+		if err != nil {
+			log.Print(err.Error())
+			continue
+		}
+		defer f.Close()
+
+		destPath := filepath.Join(config.CWD, movie.extToSRT())
+		destFile, err := os.Create(destPath)
+		if err != nil {
+			return fmt.Errorf("failed to create destination file: %v", err.Error())
+		}
+		defer destFile.Close()
+
+		_, err = io.Copy(destFile, f)
+		if err != nil {
+			return fmt.Errorf("failed to copy subtitle to %v: %v", destFile, err.Error())
 		}
 	}
 
