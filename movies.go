@@ -36,6 +36,9 @@ type Movie struct {
 	Series    *series
 	Source    string
 	Extension string
+	SDID      *string
+	Year      string
+	Codec     string
 
 	AvailableSubtitles []Subtitle
 }
@@ -60,6 +63,9 @@ func NewMovies(movies []string, config Config) (*Movies, error) {
 			Lang:     config.PREFERRED_LANG,
 			Series:   nil,
 			Source:   info.Quality,
+			SDID:     nil,
+			Year:     strconv.Itoa(info.Year),
+			Codec:    info.Codec,
 		}
 
 		if info.Season > 0 && info.Episode > 0 {
@@ -89,15 +95,15 @@ func (movies Movies) GetSubtitles() {
 	for _, movie := range movies.List {
 		go func(movie Movie) {
 			defer wg.Done()
-			err := movie.searchMovie(movies.config.SDL_API_KEY)
+			err := movie.searchMovie(movies.config.SDL_API_KEY, false)
 			if err != nil {
-				log.Printf("cannot get movie, ERR: %s", err.Error())
+				log.Printf("cannot get movie: %s", err.Error())
 				return
 			}
 			subUrl := movie.selectSubtitle()
 			if subUrl == nil {
 				// TODO: better error message
-				log.Printf("cannot get subtitle for this movie")
+				log.Printf("cannot get subtitle for this movie\n\n")
 				return
 			}
 			err = movie.downloadSubtitle(*subUrl)
@@ -111,11 +117,14 @@ func (movies Movies) GetSubtitles() {
 	wg.Wait()
 }
 
-func (movie *Movie) searchMovie(api_key string) error {
+func (movie *Movie) searchMovie(api_key string, found bool) error {
 	req, err := http.NewRequest(http.MethodGet, SUBDL_URL, nil)
 	if err != nil {
 		log.Print(err.Error())
 	}
+
+	// is a movie or a tv series, default to movie
+	t := "movie"
 
 	q := req.URL.Query()
 
@@ -124,11 +133,20 @@ func (movie *Movie) searchMovie(api_key string) error {
 	q.Add("api_key", api_key)
 	q.Add("film_name", movie.Title)
 	q.Add("languages", movie.Lang)
+	q.Add("subs_per_page", "30")
+
+	if movie.SDID != nil {
+		q.Add("sd_id", *movie.SDID)
+		q.Del("film_name") // delete film_name because we already have the sd_id otherwise its gonna override the result
+	}
 
 	if movie.Series != nil {
+		t = "tv"
 		q.Add("season_number", strconv.Itoa(movie.Series.Season))
 		q.Add("episode_number", strconv.Itoa(movie.Series.Episode))
 	}
+
+	q.Add("type", t)
 
 	req.URL.RawQuery = q.Encode()
 	resp, err := http.DefaultClient.Do(req)
@@ -142,36 +160,55 @@ func (movie *Movie) searchMovie(api_key string) error {
 		return errors.New(err.Error())
 	}
 
-	movie.AvailableSubtitles = sdlResp.Subtitles
-	return nil
+	if found {
+		movie.AvailableSubtitles = sdlResp.Subtitles
+		return nil
+	}
+
+	for _, mvResults := range sdlResp.Results {
+		if mvResults.Name == movie.Title {
+			s := strconv.Itoa(mvResults.SdID)
+			movie.SDID = &s
+			return movie.searchMovie(api_key, true)
+		}
+	}
+
+	return errors.New("movie not found")
 }
 
 func (movie Movie) selectSubtitle() *string {
 	if len(movie.Source) == 0 {
-		// TODO: if movie source empty, manually select subtitles
 		return nil
 	}
 
 	var matchedSubs = []Subtitle{}
+	re, err := regexp.Compile(`(?i)` + regexp.QuoteMeta(movie.Source))
+	if err != nil {
+		return nil
+	}
 
-	// ? get the matched source so it wont mess up when the subtitle is being used
-	re, _ := regexp.Compile("(?)" + movie.Source)
 	for _, sub := range movie.AvailableSubtitles {
-		if re.MatchString(movie.Filename) {
+		if re.MatchString(sub.ReleaseName) {
 			matchedSubs = append(matchedSubs, sub)
 		}
 	}
 
-	if movie.Series != nil {
-		// ? TODO: maybe increment subtitle limit 10 by 10 if not found, search until the very last subtitle
-		for _, sub := range matchedSubs {
-			if movie.Series.Season == sub.Season {
-				if sub.Episode != nil && movie.Series.Episode == *sub.Episode {
-					return &sub.URL
-				} else {
-					// ? TODO: maybe search in filename string if it contains S00E00 format, if it matched then return that subtitle
+	for _, sub := range matchedSubs {
+		if movie.Series != nil && movie.Series.Season == sub.Season {
+			if sub.Episode != nil && movie.Series.Episode == *sub.Episode {
+				return &sub.URL
+			}
+			continue
+		} else {
+			p, err := ptn.Parse(sub.ReleaseName)
+			if err != nil {
+				continue
+			}
+			if movie.Title == p.Title && movie.Year == strconv.Itoa(p.Year) {
+				if len(p.Codec) > 0 && len(movie.Codec) > 0 && p.Codec != movie.Codec {
 					continue
 				}
+				return &sub.URL
 			}
 		}
 	}

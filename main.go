@@ -15,6 +15,9 @@ var (
 	command string
 	movies  []string
 	config  Config
+
+	// full_season = flag.Bool("full_season", false, "to get all full season subtitles instead")
+	// lang = flag.String("lang", "", "override preferred language to use")
 )
 
 func printHelp() {
@@ -45,42 +48,18 @@ func init() {
 	}
 
 	command = args[0]
+}
 
+func main() {
 	switch command {
 	case "run":
 		config = GetConfig()
-		// noop
+		GetSubtitles()
+		os.Exit(0)
 	case "help":
 		flag.Usage()
 	default:
 		log.Fatal("command not found, please refer to `help` command")
 		os.Exit(0)
 	}
-}
-
-func main() {
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-
-	config.CWD = cwd
-
-	files, err := os.ReadDir(cwd)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, file := range files {
-		if !file.IsDir() && ExtIsAllowed(file.Name()) {
-			movies = append(movies, file.Name())
-		}
-	}
-
-	parsed, err := NewMovies(movies, config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	parsed.GetSubtitles()
 }
