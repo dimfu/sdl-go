@@ -282,6 +282,11 @@ func (movie Movie) downloadSubtitle(url string) error {
 	}
 
 	for _, file := range zipReader.File {
+		match := SearchExtension(file.Name)
+		if match != ".srt" {
+			continue
+		}
+
 		f, err := file.Open()
 		if err != nil {
 			log.Print(err.Error())

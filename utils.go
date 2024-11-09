@@ -21,7 +21,6 @@ func MakeGetRequest(
 	queryBuilder(q)
 
 	req.URL.RawQuery = q.Encode()
-	fmt.Println(req.URL.String())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
