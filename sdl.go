@@ -2,7 +2,7 @@ package main
 
 import "time"
 
-type Response struct {
+type SDLResponse struct {
 	Status    bool       `json:"status"`
 	Results   []Result   `json:"results"`
 	Subtitles []Subtitle `json:"subtitles"`

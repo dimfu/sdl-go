@@ -11,7 +11,8 @@ import (
 
 type Config struct {
 	SDL_API_KEY    string `json:"sdl_api_key"`
-	PREFERRED_LANG string
+	OMDB_API_KEY   string `json:"omdb_api_key"`
+	PREFERRED_LANG string `json:"preferred_lang"`
 	CWD            string
 }
 
@@ -34,12 +35,17 @@ func GetConfig() Config {
 	parser := json.NewDecoder(cfgFile)
 	parser.Decode(&config)
 
-	if config.SDL_API_KEY == "" || config.PREFERRED_LANG == "" {
+	if config.SDL_API_KEY == "" || config.PREFERRED_LANG == "" || config.OMDB_API_KEY == "" {
 		reader := bufio.NewReader(os.Stdin)
 		if config.SDL_API_KEY == "" {
-			fmt.Print("API KEY not assigned, please input your API KEY:\n-> ")
+			fmt.Print("SDL API KEY not assigned, please input your API KEY:\n-> ")
 			text, _ := reader.ReadString('\n')
 			config.SDL_API_KEY = strings.TrimSpace(text)
+		}
+		if config.OMDB_API_KEY == "" {
+			fmt.Print("OMDB API KEY not assigned, please input your API KEY:\n-> ")
+			text, _ := reader.ReadString('\n')
+			config.OMDB_API_KEY = strings.TrimSpace(text)
 		}
 		if config.PREFERRED_LANG == "" {
 			fmt.Print("Preferred Language not assigned, please input your preferred language:\n-> ")

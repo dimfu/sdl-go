@@ -3,12 +3,12 @@ package main
 import (
 	"archive/zip"
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,6 +22,8 @@ import (
 const (
 	SUBDL_URL    = "https://api.subdl.com/api/v1/subtitles"
 	DOWNLOAD_URL = "https://dl.subdl.com"
+
+	OMDB_URL = "http://www.omdbapi.com"
 )
 
 type series struct {
@@ -39,6 +41,7 @@ type Movie struct {
 	SDID      *string
 	Year      string
 	Codec     string
+	IMDBID    *string
 
 	AvailableSubtitles []Subtitle
 }
@@ -117,47 +120,62 @@ func (movies Movies) GetSubtitles() {
 	wg.Wait()
 }
 
+func (movie Movie) getMoviesFromSDL(api_key string) (*SDLResponse, error) {
+	qb := func(q url.Values) {
+		t := "movie"
+		q.Add("api_key", api_key)
+		q.Add("film_name", movie.Title)
+		q.Add("languages", movie.Lang)
+		q.Add("subs_per_page", "30")
+
+		if movie.SDID != nil {
+			q.Add("sd_id", *movie.SDID)
+			q.Del("film_name") // delete film_name because we already have the sd_id otherwise its gonna override the result
+		}
+
+		if movie.IMDBID != nil {
+			q.Add("imdb_id", *movie.IMDBID)
+			q.Del("sd_id")
+
+			q.Del("film_name") // same thing to this, apparently subdl doesnt handle it by itself
+		}
+
+		if movie.Series != nil {
+			t = "tv"
+			q.Add("season_number", strconv.Itoa(movie.Series.Season))
+			q.Add("episode_number", strconv.Itoa(movie.Series.Episode))
+		}
+
+		q.Add("type", t)
+	}
+
+	var res SDLResponse
+	if err := MakeGetRequest(SUBDL_URL, qb, &res); err != nil {
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+func (movie Movie) getIMDB_ID() (*string, error) {
+	qb := func(q url.Values) {
+		q.Add("apikey", config.OMDB_API_KEY)
+		q.Add("t", movie.Title)
+		q.Add("year", movie.Year)
+	}
+
+	var res OMDBResponse
+	if err := MakeGetRequest(OMDB_URL, qb, &res); err != nil {
+		return nil, err
+	}
+
+	return &res.ImdbID, nil
+}
+
 func (movie *Movie) searchMovie(api_key string, found bool) error {
-	req, err := http.NewRequest(http.MethodGet, SUBDL_URL, nil)
-	if err != nil {
-		log.Print(err.Error())
-	}
-
-	// is a movie or a tv series, default to movie
-	t := "movie"
-
-	q := req.URL.Query()
-
-	// TODO: add full season flag to just search download url that provides full season episodes
-
-	q.Add("api_key", api_key)
-	q.Add("film_name", movie.Title)
-	q.Add("languages", movie.Lang)
-	q.Add("subs_per_page", "30")
-
-	if movie.SDID != nil {
-		q.Add("sd_id", *movie.SDID)
-		q.Del("film_name") // delete film_name because we already have the sd_id otherwise its gonna override the result
-	}
-
-	if movie.Series != nil {
-		t = "tv"
-		q.Add("season_number", strconv.Itoa(movie.Series.Season))
-		q.Add("episode_number", strconv.Itoa(movie.Series.Episode))
-	}
-
-	q.Add("type", t)
-
-	req.URL.RawQuery = q.Encode()
-	resp, err := http.DefaultClient.Do(req)
+	sdlResp, err := movie.getMoviesFromSDL(api_key)
 	if err != nil {
 		return err
-	}
-	defer resp.Body.Close()
-
-	var sdlResp Response
-	if err = json.NewDecoder(resp.Body).Decode(&sdlResp); err != nil {
-		return errors.New(err.Error())
 	}
 
 	if found {
@@ -165,12 +183,23 @@ func (movie *Movie) searchMovie(api_key string, found bool) error {
 		return nil
 	}
 
+	// refetch subdl request again to get the correct subtitle list
 	for _, mvResults := range sdlResp.Results {
 		if mvResults.Name == movie.Title {
 			s := strconv.Itoa(mvResults.SdID)
-			movie.SDID = &s
+			movie.SDID = &s // had to use SDID for accuracy
 			return movie.searchMovie(api_key, true)
 		}
+	}
+
+	imdbId, err := movie.getIMDB_ID()
+	if err != nil {
+		return err
+	}
+
+	if len(*imdbId) > 0 {
+		movie.IMDBID = imdbId
+		return movie.searchMovie(api_key, true)
 	}
 
 	return errors.New("movie not found")
