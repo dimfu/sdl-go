@@ -106,7 +106,7 @@ func (movies Movies) GetSubtitles() {
 			subUrl := movie.selectSubtitle()
 			if subUrl == nil {
 				// TODO: better error message
-				log.Printf("cannot get subtitle for this movie\n\n")
+				log.Println("cannot get subtitle for this movie")
 				return
 			}
 			err = movie.downloadSubtitle(*subUrl)

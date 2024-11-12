@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 )
@@ -16,19 +15,16 @@ var (
 	movies  []string
 	config  Config
 
-	// full_season = flag.Bool("full_season", false, "to get all full season subtitles instead")
-	// lang = flag.String("lang", "", "override preferred language to use")
-)
+	args []string
 
-func printHelp() {
-	fmt.Println("Usage:")
-}
+	lang = flag.String("lang", "", "override preferred language to use")
+)
 
 func init() {
 	flag.Parse()
 	flag.Usage = printHelp
 
-	args := make([]string, 0)
+	args = make([]string, 0)
 	for i := len(os.Args) - len(flag.Args()) + 1; i < len(os.Args); {
 		if i > 1 && os.Args[i-2] == "--" {
 			break
@@ -48,14 +44,29 @@ func init() {
 	}
 
 	command = args[0]
+	config = GetConfig()
 }
 
 func main() {
 	switch command {
 	case "run":
-		config = GetConfig()
 		GetSubtitles()
-		os.Exit(0)
+	case "config":
+		if len(args) > 0 {
+			command := args[1]
+			switch command {
+			case "list":
+				ListConfig()
+			case "reset":
+				RemoveConfig()
+				GetConfig()
+				os.Exit(0)
+			default:
+				log.Fatal("sub command not found")
+			}
+		} else {
+			log.Fatal("need sub command")
+		}
 	case "help":
 		flag.Usage()
 	default:

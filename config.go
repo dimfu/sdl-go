@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,18 +17,44 @@ type Config struct {
 	CWD            string
 }
 
+func configFilePath() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal("error while getting home dir")
+	}
+	cfgFilePath := homeDir + "/.config/sdl-go.json"
+	return cfgFilePath
+}
+
+func ListConfig() {
+	file, err := os.ReadFile(configFilePath())
+	if err != nil {
+		log.Fatal(err)
+	}
+	var buffer bytes.Buffer
+	err = json.Indent(&buffer, file, "", "\t")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print(buffer.String())
+	os.Exit(0)
+}
+
+func RemoveConfig() {
+	err := os.Remove(configFilePath())
+	if err != nil {
+		log.Fatalf("error deleting config: %v", err.Error())
+	}
+
+	log.Println("successfully deleting config")
+}
+
 func GetConfig() Config {
 	config := Config{
 		SDL_API_KEY:    "",
 		PREFERRED_LANG: "",
 	}
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	cfgFilePath := homeDir + "/.config/sdl-go.json"
-	cfgFile, err := os.OpenFile(cfgFilePath, os.O_RDWR|os.O_CREATE, 0644)
+	cfgFile, err := os.OpenFile(configFilePath(), os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
