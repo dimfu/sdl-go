@@ -19,6 +19,9 @@ cd (mov dir)
 
 # run the thing, it should download all the subtitle for each movie in the directory
 sdl-go run
+
+# for more commands run
+sdl-go help
 `````
 
 ## credits

@@ -26,27 +26,28 @@ func configFilePath() string {
 	return cfgFilePath
 }
 
-func ListConfig() {
+func ListConfig() error {
 	file, err := os.ReadFile(configFilePath())
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	var buffer bytes.Buffer
 	err = json.Indent(&buffer, file, "", "\t")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	fmt.Print(buffer.String())
-	os.Exit(0)
+	return nil
 }
 
-func RemoveConfig() {
+func RemoveConfig() error {
 	err := os.Remove(configFilePath())
 	if err != nil {
-		log.Fatalf("error deleting config: %v", err.Error())
+		return fmt.Errorf("error deleting config: %v", err.Error())
 	}
 
 	log.Println("successfully deleting config")
+	return nil
 }
 
 func GetConfig() Config {

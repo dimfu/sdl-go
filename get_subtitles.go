@@ -35,17 +35,18 @@ func overrideLang(lang string) (*string, error) {
 	return nil, errors.New("language not found")
 }
 
-func GetSubtitles() {
+func GetSubtitles(language string) error {
+	movies := []string{}
 	cwd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	config.CWD = cwd
 
 	files, err := os.ReadDir(cwd)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	for _, file := range files {
@@ -54,14 +55,11 @@ func GetSubtitles() {
 		}
 	}
 
-	// handle lang flag if not empty
-	if len(*lang) > 0 {
-		ol, err := overrideLang(*lang)
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-		config.PREFERRED_LANG = *ol
+	ol, err := overrideLang(language)
+	if err != nil {
+		return err
 	}
+	config.PREFERRED_LANG = *ol
 
 	parsed, err := NewMovies(movies, config)
 	if err != nil {
@@ -69,5 +67,5 @@ func GetSubtitles() {
 	}
 
 	parsed.GetSubtitles()
-	os.Exit(0)
+	return nil
 }

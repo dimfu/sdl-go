@@ -1,76 +1,67 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"os"
+
+	"github.com/urfave/cli/v2"
 )
 
-const (
-	SDL_API_KEY = "SDL_API_KEY"
-)
-
-var (
-	command string
-	movies  []string
-	config  Config
-
-	args []string
-
-	lang = flag.String("lang", "", "override preferred language to use")
-)
+var config Config
 
 func init() {
-	flag.Parse()
-	flag.Usage = printHelp
-
-	args = make([]string, 0)
-	for i := len(os.Args) - len(flag.Args()) + 1; i < len(os.Args); {
-		if i > 1 && os.Args[i-2] == "--" {
-			break
-		}
-		args = append(args, flag.Arg(0))
-		if err := flag.CommandLine.Parse(os.Args[i:]); err != nil {
-			log.Fatal("error while parsing arguments")
-		}
-
-		i += 1 + len(os.Args[i:]) - len(flag.Args())
-	}
-	args = append(args, flag.Args()...)
-
-	if len(args) < 1 {
-		flag.Usage()
-		os.Exit(0)
-	}
-
-	command = args[0]
 	config = GetConfig()
 }
 
 func main() {
-	switch command {
-	case "run":
-		GetSubtitles()
-	case "config":
-		if len(args) > 0 {
-			command := args[1]
-			switch command {
-			case "list":
-				ListConfig()
-			case "reset":
-				RemoveConfig()
-				GetConfig()
-				os.Exit(0)
-			default:
-				log.Fatal("sub command not found")
-			}
-		} else {
-			log.Fatal("need sub command")
-		}
-	case "help":
-		flag.Usage()
-	default:
-		log.Fatal("command not found, please refer to `help` command")
-		os.Exit(0)
+	var language string
+
+	app := &cli.App{
+		Name:  "sdl-go",
+		Usage: "simple CLI application to download movie subtitles from SUBDL",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "lang",
+				Aliases:     []string{"l"},
+				Value:       config.PREFERRED_LANG,
+				Usage:       "override selected language from config",
+				Destination: &language,
+			},
+		},
+		Commands: []*cli.Command{
+			{
+				Name:    "run",
+				Aliases: []string{"r"},
+				Usage:   "download subtitle from the current working directory",
+				Action: func(ctx *cli.Context) error {
+					return GetSubtitles(language)
+				},
+			},
+			{
+				Name:    "config",
+				Aliases: []string{"c"},
+				Usage:   "options for config",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "list",
+						Usage: "show current config",
+						Action: func(ctx *cli.Context) error {
+							return ListConfig()
+						},
+					},
+					{
+						Name:  "reset",
+						Usage: "reset config",
+						Action: func(ctx *cli.Context) error {
+							return RemoveConfig()
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := app.Run(os.Args); err != nil {
+		log.Fatal(err)
 	}
 }
