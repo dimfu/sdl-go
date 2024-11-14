@@ -10,11 +10,15 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
 
 	"github.com/razsteinmetz/go-ptn"
 )
@@ -92,32 +96,94 @@ func NewMovies(movies []string, config Config) (*Movies, error) {
 }
 
 func (movies Movies) GetSubtitles() {
+	spinner := CreateSpinnerFromMethods()
+	updater := &SpinnerUpdater{S: spinner, Success: 0, Failed: 0}
+
+	// handle spinner cleanup on interrupts
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	go func() {
+		<-sigCh
+
+		spinner.StopFailMessage("interrupted")
+
+		// ignoring error intentionally
+		_ = spinner.StopFail()
+
+		os.Exit(0)
+	}()
+
+	if err := spinner.Start(); err != nil {
+		log.Fatal(err)
+	}
+
+	time.Sleep(time.Second)
+
+	// pause spinner to do an "atomic" config update
+	if err := spinner.Pause(); err != nil {
+		exitf("failed to pause spinner: %v", err)
+	}
+
+	spinner.Suffix(" Downloading subtitles")
+	spinner.Message("")
+
+	if err := spinner.Unpause(); err != nil {
+		exitf("failed to unpause spinner: %v", err)
+	}
+
+	// let spinner animation render for a bit
+	time.Sleep(time.Second)
+
 	wg := sync.WaitGroup{}
 	wg.Add(len(movies.List))
+
+	go func() {
+		for {
+			spinner.Message(fmt.Sprintf("Progress: Success: %d, Failed: %d / Total: %d",
+				atomic.LoadInt32(&updater.Success),
+				atomic.LoadInt32(&updater.Failed),
+				len(movies.List)))
+
+			if atomic.LoadInt32(&updater.Success)+atomic.LoadInt32(&updater.Failed) == int32(len(movies.List)) {
+				fmt.Println("\nAll tasks completed!")
+				break
+			}
+
+			time.Sleep(200 * time.Millisecond)
+		}
+	}()
 
 	for _, movie := range movies.List {
 		go func(movie Movie) {
 			defer wg.Done()
 			err := movie.searchMovie(movies.config.SDL_API_KEY, false)
 			if err != nil {
-				log.Printf("cannot get movie: %s", err.Error())
+				atomic.AddInt32(&updater.Failed, 1)
 				return
 			}
 			subUrl := movie.selectSubtitle()
 			if subUrl == nil {
-				// TODO: better error message
-				log.Println("cannot get subtitle for this movie")
+				atomic.AddInt32(&updater.Failed, 1)
 				return
 			}
 			err = movie.downloadSubtitle(*subUrl)
 			if err != nil {
-				log.Print(err.Error())
+				atomic.AddInt32(&updater.Failed, 1)
 				return
 			}
+			atomic.AddInt32(&updater.Success, 1)
+			time.Sleep(100 * time.Millisecond)
 		}(movie)
 	}
 
 	wg.Wait()
+
+	spinner.Suffix("")
+	message := fmt.Sprintf(" Done downloading subtitles: %d succeeded, %d failed", updater.Success, updater.Failed)
+	spinner.StopMessage(message)
+	spinner.Stop()
 }
 
 func (movie Movie) getMoviesFromSDL(api_key string) (*SDLResponse, error) {
