@@ -8,14 +8,11 @@ Before running the app you need to get 2 different API Key from [SUBDL](https://
 ## usage
 
 ```bash
-# install the dependencies
-go mod download
-
-# build the binary
-go install .
+# install the binary
+go install github.com/dimfu/sdl-go@latest
 
 # make sure to be in the movie directory
-cd (mov dir)
+cd (movie dir)
 
 # run the thing, it should download all the subtitle for each movie in the directory
 sdl-go run
