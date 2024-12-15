@@ -290,10 +290,10 @@ func (movie Movie) selectSubtitle() *string {
 
 	for _, sub := range matchedSubs {
 		if movie.Series != nil && movie.Series.Season == sub.Season {
-			if sub.Episode != nil && movie.Series.Episode == *sub.Episode {
+			if (sub.Episode != nil && movie.Series.Episode == *sub.Episode) || strings.Contains(sub.Name, "complete") {
 				return &sub.URL
 			}
-			continue
+			return &sub.URL
 		} else {
 			p, err := ptn.Parse(sub.ReleaseName)
 			if err != nil {
@@ -350,6 +350,16 @@ func (movie Movie) downloadSubtitle(url string) error {
 	for _, file := range zipReader.File {
 		match := SearchExtension(file.Name)
 		if match != ".srt" {
+			continue
+		}
+
+		subDetails, err := ptn.Parse(file.Name)
+		if err != nil {
+			return fmt.Errorf("failed to parse file %v. Error: %s", file.Name, err.Error())
+		}
+
+		// ensure we pick the correct subtitle if the zip we downloaded is a complete one
+		if movie.Series != nil && subDetails.Episode != movie.Series.Episode {
 			continue
 		}
 
