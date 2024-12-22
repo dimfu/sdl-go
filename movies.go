@@ -43,7 +43,7 @@ type Movie struct {
 	Source    string
 	Extension string
 	SDID      *string
-	Year      string
+	Year      *string
 	Codec     string
 	IMDBID    *string
 
@@ -64,6 +64,7 @@ func NewMovies(movies []string, config Config) (*Movies, error) {
 			continue
 		}
 
+		year := strconv.Itoa(info.Year)
 		movie := &Movie{
 			Filename: filename,
 			Title:    info.Title,
@@ -71,8 +72,18 @@ func NewMovies(movies []string, config Config) (*Movies, error) {
 			Series:   nil,
 			Source:   info.Quality,
 			SDID:     nil,
-			Year:     strconv.Itoa(info.Year),
+			Year:     &year,
 			Codec:    info.Codec,
+		}
+
+		// ugly fix if the torrent author setting the source into just `web` because its mixed
+		if len(movie.Source) == 0 {
+			r, err := regexp.Compile(`(?i)\b((?:PPV\.)?[HP]DTV|(?:HD)?CAM|B[DR]Rip|(?:HD-?)?TS|(?:PPV )?WEB(?:-?DL|Rip)?|HDRip|DVDRip|DVDRIP|CamRip|W[EB]BRip|BluRay|DvDScr|telesync)\b`)
+			if err != nil {
+				log.Fatal(err)
+			}
+			newsource := r.FindString(movie.Filename)
+			movie.Source = newsource
 		}
 
 		if info.Season > 0 && info.Episode > 0 {
@@ -199,6 +210,10 @@ func (movie Movie) getMoviesFromSDL(api_key string) (*SDLResponse, error) {
 			q.Del("film_name") // delete film_name because we already have the sd_id otherwise its gonna override the result
 		}
 
+		if movie.Year != nil {
+			q.Add("year", *movie.Year)
+		}
+
 		if movie.IMDBID != nil {
 			q.Add("imdb_id", *movie.IMDBID)
 			q.Del("sd_id")
@@ -227,7 +242,7 @@ func (movie Movie) getIMDB_ID() (*string, error) {
 	qb := func(q url.Values) {
 		q.Add("apikey", config.OMDB_API_KEY)
 		q.Add("t", movie.Title)
-		q.Add("year", movie.Year)
+		q.Add("year", *movie.Year)
 	}
 
 	var res OMDBResponse
@@ -299,7 +314,8 @@ func (movie Movie) selectSubtitle() *string {
 			if err != nil {
 				continue
 			}
-			if movie.Title == p.Title && movie.Year == strconv.Itoa(p.Year) {
+			year := strconv.Itoa(p.Year)
+			if movie.Title == p.Title && movie.Year == &year {
 				if len(p.Codec) > 0 && len(movie.Codec) > 0 && p.Codec != movie.Codec {
 					continue
 				}
