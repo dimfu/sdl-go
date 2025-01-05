@@ -315,7 +315,7 @@ func (movie Movie) selectSubtitle() *string {
 				continue
 			}
 			year := strconv.Itoa(p.Year)
-			if movie.Title == p.Title && movie.Year == &year {
+			if movie.Title == p.Title && *movie.Year == year {
 				if len(p.Codec) > 0 && len(movie.Codec) > 0 && p.Codec != movie.Codec {
 					continue
 				}
