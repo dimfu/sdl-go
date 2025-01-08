@@ -110,6 +110,8 @@ func NewMovies(movies []string, config Config, verbose bool) (*Movies, error) {
 
 func (movies Movies) log(msg string, s *SpinnerUpdater) {
 	if movies.verbose {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 		s.S.StopCharacter("")
 		s.S.Stop()
 		log.Println(msg)

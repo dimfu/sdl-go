@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/theckman/yacspin"
@@ -13,6 +14,7 @@ type SpinnerUpdater struct {
 	Success int32
 	Failed  int32
 	Output  string
+	mu      sync.Mutex
 }
 
 func CreateSpinnerFromMethods() *yacspin.Spinner {
