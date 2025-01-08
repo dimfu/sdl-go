@@ -14,11 +14,15 @@ func init() {
 }
 
 func main() {
-	var language string
+	var (
+		language string
+		verbose  bool
+	)
 
 	app := &cli.App{
-		Name:  "sdl-go",
-		Usage: "simple CLI application to download movie subtitles from SUBDL",
+		UseShortOptionHandling: true,
+		Name:                   "sdl-go",
+		Usage:                  "simple CLI application to download movie subtitles from SUBDL",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "lang",
@@ -27,6 +31,12 @@ func main() {
 				Usage:       "override selected language from config",
 				Destination: &language,
 			},
+			&cli.BoolFlag{
+				Name:        "verbose",
+				Aliases:     []string{"v"},
+				Usage:       "more detailed information about what's going on",
+				Destination: &verbose,
+			},
 		},
 		Commands: []*cli.Command{
 			{
@@ -34,7 +44,7 @@ func main() {
 				Aliases: []string{"r"},
 				Usage:   "download subtitle from the current working directory",
 				Action: func(ctx *cli.Context) error {
-					return GetSubtitles(language)
+					return GetSubtitles(language, verbose)
 				},
 			},
 			{

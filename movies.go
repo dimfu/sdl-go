@@ -51,11 +51,12 @@ type Movie struct {
 }
 
 type Movies struct {
-	List   []Movie
-	config Config
+	List    []Movie
+	config  Config
+	verbose bool
 }
 
-func NewMovies(movies []string, config Config) (*Movies, error) {
+func NewMovies(movies []string, config Config, verbose bool) (*Movies, error) {
 	var list = []Movie{}
 	for _, filename := range movies {
 		info, err := ptn.Parse(filename)
@@ -101,9 +102,19 @@ func NewMovies(movies []string, config Config) (*Movies, error) {
 	}
 
 	return &Movies{
-		List:   list,
-		config: config,
+		List:    list,
+		config:  config,
+		verbose: verbose,
 	}, nil
+}
+
+func (movies Movies) log(msg string, s *SpinnerUpdater) {
+	if movies.verbose {
+		s.S.StopCharacter("")
+		s.S.Stop()
+		log.Println(msg)
+		s.S.Start()
+	}
 }
 
 func (movies Movies) GetSubtitles() {
@@ -137,7 +148,6 @@ func (movies Movies) GetSubtitles() {
 		exitf("failed to pause spinner: %v", err)
 	}
 
-	spinner.Suffix(" Downloading subtitles")
 	spinner.Message("")
 
 	if err := spinner.Unpause(); err != nil {
@@ -171,27 +181,37 @@ func (movies Movies) GetSubtitles() {
 			defer wg.Done()
 			err := movie.searchMovie(movies.config.SDL_API_KEY, false)
 			if err != nil {
+				movies.log(err.Error(), updater)
 				atomic.AddInt32(&updater.Failed, 1)
 				return
 			}
 			subUrl := movie.selectSubtitle()
 			if subUrl == nil {
+				movies.log(fmt.Sprintf("Could not find subtitle for %s", movie.Title), updater)
 				atomic.AddInt32(&updater.Failed, 1)
 				return
 			}
 			err = movie.downloadSubtitle(*subUrl)
 			if err != nil {
+				movies.log(fmt.Sprintf("Could not find subtitle download link for %s ERR: %s", movie.Title, err.Error()), updater)
 				atomic.AddInt32(&updater.Failed, 1)
 				return
 			}
 			atomic.AddInt32(&updater.Success, 1)
+
 			time.Sleep(100 * time.Millisecond)
+			msg := fmt.Sprintf("found subtitle for %s", movie.Title)
+			if movie.Series != nil {
+				msg = fmt.Sprintf("found subtitle for %s S%dE%d", movie.Title, movie.Series.Season, movie.Series.Episode)
+			}
+			movies.log(msg, updater)
 		}(movie)
 	}
 
 	wg.Wait()
 
-	spinner.Suffix("")
+	spinner.Suffix(" ")
+	spinner.StopCharacter("✓")
 	message := fmt.Sprintf(" Done downloading subtitles: %d succeeded, %d failed", updater.Success, updater.Failed)
 	spinner.StopMessage(message)
 	spinner.Stop()
@@ -283,7 +303,7 @@ func (movie *Movie) searchMovie(api_key string, found bool) error {
 		return movie.searchMovie(api_key, true)
 	}
 
-	return errors.New("movie not found")
+	return fmt.Errorf("cannot find movie %s", movie.Title)
 }
 
 func (movie Movie) selectSubtitle() *string {

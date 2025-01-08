@@ -35,7 +35,7 @@ func overrideLang(lang string) (*string, error) {
 	return nil, errors.New("language not found")
 }
 
-func GetSubtitles(language string) error {
+func GetSubtitles(language string, verbose bool) error {
 	movies := []string{}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -61,7 +61,7 @@ func GetSubtitles(language string) error {
 	}
 	config.PREFERRED_LANG = *ol
 
-	parsed, err := NewMovies(movies, config)
+	parsed, err := NewMovies(movies, config, verbose)
 	if err != nil {
 		log.Fatal(err)
 	}

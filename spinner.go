@@ -17,11 +17,11 @@ type SpinnerUpdater struct {
 
 func CreateSpinnerFromMethods() *yacspin.Spinner {
 	cfg := yacspin.Config{
-		Frequency:         100 * time.Millisecond,
-		CharSet:           yacspin.CharSets[40],
-		SuffixAutoColon:   true,
-		Message:           "Initializing Download",
-		StopMessage:       "Done downloading subtitle",
+		Frequency:       100 * time.Millisecond,
+		CharSet:         yacspin.CharSets[40],
+		SuffixAutoColon: true,
+		Message:         "Initializing Download",
+		// StopMessage:       "Done downloading subtitle",
 		StopCharacter:     "✓",
 		StopColors:        []string{"fgGreen"},
 		StopFailCharacter: "✗",
@@ -52,7 +52,6 @@ func CreateSpinnerFromMethods() *yacspin.Spinner {
 
 	s.Suffix(" ")
 	s.StopCharacter("✓")
-	s.StopMessage("done")
 	s.StopFailCharacter("✗")
 	s.StopFailMessage("failed")
 
